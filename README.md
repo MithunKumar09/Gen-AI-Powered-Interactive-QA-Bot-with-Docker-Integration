@@ -90,7 +90,7 @@
 - docker-compose up
 
 ## Directory Structure
-### GEN-AI-RAG-ENHANCED-INTERACTIVE-QA-BOT**
+**GEN-AI-RAG-ENHANCED-INTERACTIVE-QA-BOT**
 - ├── **Backend (RAG Model)**
 - │   ├── pycache
 - │   ├── config
