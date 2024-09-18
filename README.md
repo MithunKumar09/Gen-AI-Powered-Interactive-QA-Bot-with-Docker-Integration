@@ -46,7 +46,7 @@ pip install -r requirements.txt
 Set up the environment variables in the .env file as described in the Configuration section.
 
 ### Frontend Setup
-Navigate to the frontend directory:
+**Navigate to the frontend directory:**
 
 bash
 cd "Frontend (Interactive QA Bot)"
@@ -54,20 +54,20 @@ Install the necessary Node.js packages:
 
 bash
 npm install
-Set up the environment variables in the .env file as described in the Configuration section.
+
+// *Set up the environment variables in the .env file as described in the Configuration section.*
 
 ## Configuration
 ### Environment Variables
-### Create and configure the following .env files:
+**Create and configure the following .env files:**
 
--Backend (Backend (RAG Model)/.env): Contains configuration for the RAG model, Cohere API key, Pinecone API key, and other backend settings.
--Frontend (Frontend (Interactive QA Bot)/.env): Contains configuration for the frontend application, including API URLs.
+-*Backend (Backend (RAG Model)/.env):* Contains configuration for the RAG model, Cohere API key, Pinecone API key, and other backend settings.
+-*Frontend (Frontend (Interactive QA Bot)/.env):* Contains configuration for the frontend application, including API URLs.
 -Ensure these files are not included in version control. Check .gitignore for details.
 
 ### .env Example
 ** Backend .env **
 env
-
 DATABASE_URL=your_database_url
 SECRET_KEY=your_secret_key
 COHERE_API_KEY=your_cohere_api_key
@@ -76,36 +76,32 @@ DATA_FOLDER=path_to_data_folder
 
 ** Frontend .env **
 env
-
 BACKEND_URL=http://backend:5000
 
 ## Usage
 ### Running Locally
-### Start the Backend:
-
+**Start the Backend:**
 bash
 cd "Backend (RAG Model)"
 python app.py
-Start the Frontend:
 
+**Start the Frontend:**
 bash
 cd "Frontend (Interactive QA Bot)"
 npm start
 
 ### Docker Setup
-Build Docker Images:
-
+**Build Docker Images:**
 bash
 docker-compose build
 
-### Run Docker Containers:
-
+**Run Docker Containers:**
 bash
 docker-compose up
 
 ## Directory Structure
-GEN-AI-RAG-ENHANCED-INTERACTIVE-QA-BOT
-├── Backend (RAG Model)
+### GEN-AI-RAG-ENHANCED-INTERACTIVE-QA-BOT**
+├── **Backend (RAG Model)**
 │   ├── pycache
 │   ├── config
 │   ├── data
@@ -123,7 +119,7 @@ GEN-AI-RAG-ENHANCED-INTERACTIVE-QA-BOT
 │   ├── Dockerfile
 │   ├── manage_index.py
 │   └── requirements.txt
-├── Frontend (Interactive QA Bot)
+├── **Frontend (Interactive QA Bot)**
 │   ├── app
 │   │   ├── app.py
 │   ├── static
@@ -135,17 +131,16 @@ GEN-AI-RAG-ENHANCED-INTERACTIVE-QA-BOT
 └── docker-compose.yml
 
 ## Contributing
-Contributions are welcome! Please follow these steps to contribute:
+**Contributions are welcome! Please follow these steps to contribute:**
 
-Fork the Repository
-Create a New Branch
-Make Your Changes
-Commit Your Changes
-Push to Your Fork
-Create a Pull Request
+*Fork the Repository*
+*Create a New Branch*
+*Make Your Changes*
+*Commit Your Changes*
+*Push to Your Fork*
+*Create a Pull Request*
 
 ### Clone the Repository
 
-```bash
 git clone https://github.com/MithunKumar09/Gen-Ai-RAG-Enhanced-Interactive-QA-Bot.git
 cd Gen-Ai-RAG-Enhanced-Interactive-QA-Bot
