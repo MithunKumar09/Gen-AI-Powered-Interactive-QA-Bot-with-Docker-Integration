@@ -1,13 +1,11 @@
 # Backend environment variables
-Backend(RAG Model)/.env
+Backend (RAG Model)/.env
 
 # Frontend environment variables
-Frontend(Interactive QA Bot)/.env
+Frontend (Interactive QA Bot)/.env
 
-# Python virtual environments
-.venv/
-Backend(RAG Model)/newenv/
-Frontend(Interactive QA Bot)/newenv/
+# Root environment variables
+.env
 
 # Python bytecode files
 *.pyc
