@@ -33,12 +33,6 @@
 - **Python:** Required for the backend and RAG model.
 - **Docker:** For containerized setup.
 
-### Clone the Repository
-
-```bash
-git clone https://github.com/MithunKumar09/Gen-Ai-RAG-Enhanced-Interactive-QA-Bot.git
-cd Gen-Ai-RAG-Enhanced-Interactive-QA-Bot
-
 ### Backend Setup
 
 **Navigate to the backend directory**
@@ -149,3 +143,9 @@ Make Your Changes
 Commit Your Changes
 Push to Your Fork
 Create a Pull Request
+
+### Clone the Repository
+
+```bash
+git clone https://github.com/MithunKumar09/Gen-Ai-RAG-Enhanced-Interactive-QA-Bot.git
+cd Gen-Ai-RAG-Enhanced-Interactive-QA-Bot
