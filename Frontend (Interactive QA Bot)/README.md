@@ -8,7 +8,7 @@ This project implements a Retrieval-Augmented Generation (RAG) model integrated 
 
 Backend (RAG Model)/ │ ├── myapp/ │ ├── init.py │ └── routes.py │ ├── models/ │ └── rag_model.py │ ├── vector_store/ │ └── pinecone_db.py │ └── newenv/ └── (virtual environment files)
 
-Copy code
+
 Frontend (Interactive QA Bot)/ │ └── app/ └── app.py
 
 ## Backend Setup
@@ -95,3 +95,5 @@ Ensure you have the following environment variable set up in your `.env` file:
 
 - The provided code assumes a basic setup and may need modifications for production use.
 - For production deployment, consider using a WSGI server (e.g., Gunicorn) for the Flask app.
+- the long files sitepackage is hidden from backend folder.
+- sensitive files .env file hidden from both folder.
