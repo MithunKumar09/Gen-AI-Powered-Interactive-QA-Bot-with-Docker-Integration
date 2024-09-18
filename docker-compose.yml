@@ -1,0 +1,21 @@
+services:
+  backend:
+    build:
+      context: "./Backend (RAG Model)"
+    container_name: rag-backend
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_APP=myapp:create_app
+    env_file:
+      - .env
+  frontend:
+    build:
+      context: "./Frontend (Interactive QA Bot)"
+    container_name: rag-frontend
+    ports:
+      - "8501:8501"
+    depends_on:
+      - backend
+    env_file:
+      - .env

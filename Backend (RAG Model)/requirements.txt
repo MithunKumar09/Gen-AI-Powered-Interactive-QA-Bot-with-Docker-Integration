@@ -1,6 +1,11 @@
-cohere
-pinecone-client
-transformers
-flask
-python-dotenv
-PyPDF2
+Flask==2.3.3
+Werkzeug==2.3.7
+requests==2.28.1
+PyPDF2==3.0.1
+numpy==1.23.4
+python-dotenv==0.21.1
+blinker>=1.6.2
+Jinja2>=3.1.2
+importlib-metadata>=3.6.0
+cohere==5.9.2
+pinecone-client==5.0.1
