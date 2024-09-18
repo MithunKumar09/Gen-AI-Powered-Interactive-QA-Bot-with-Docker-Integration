@@ -1,0 +1,6 @@
+cohere
+pinecone-client
+transformers
+flask
+python-dotenv
+PyPDF2
