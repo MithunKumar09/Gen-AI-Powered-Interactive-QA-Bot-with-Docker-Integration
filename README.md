@@ -91,19 +91,19 @@
 
 ## Directory Structure
 ### GEN-AI-RAG-ENHANCED-INTERACTIVE-QA-BOT**
-├── **Backend (RAG Model)**
-│   ├── pycache
-│   ├── config
-│   ├── data
-│   │   ├── answer_20240917_161421.txt
-│   │   └── answer_20240918_083208.txt
-│   ├── models
-│   ├── myapp
-│   │   ├── pycache
-│   │   ├── __init__.py
-│   │   ├── routes.py
-│   ├── vector_store
-│   │   ├── pycache
+- ├── **Backend (RAG Model)**
+- │   ├── pycache
+- │   ├── config
+- │   ├── data
+- │   │   ├── answer_20240917_161421.txt
+- │   │   └── answer_20240918_083208.txt
+- │   ├── models
+- │   ├── myapp
+- │   │   ├── pycache
+- │   │   ├── __init__.py
+- │   │   ├── routes.py
+- │   ├── vector_store
+- │   │   ├── pycache
 │   │   └── pinecone_db.py
 │   ├── .env
 │   ├── Dockerfile
