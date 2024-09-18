@@ -1,0 +1,10 @@
+Question: list methodologies.
+Answer: The methodologies used in the given context are:
+1. Data Loading: The first step involves loading the data from a CSV file into a pandas DataFrame. This is a crucial step to prepare the data for further processing and analysis.
+2. Data Cleaning: This methodology focuses on cleaning the data by removing missing values and outliers. Data cleaning ensures that the dataset is free from errors and inconsistencies, which is essential for accurate analysis.
+3. Maneuver Detection: The project uses a maneuver detection methodology that employs adaptive thresholding with Simple Moving Average (SMA). This technique helps identify orbital maneuvers from spacecraft data.
+4. Evaluation: The detected maneuvers are then evaluated using various performance metrics such as accuracy, precision, recall, F1 score, and ROC AUC. This methodology assesses the effectiveness and accuracy of the maneuver detection algorithm.
+5. Visualization: Visualization is used to graphically represent the detected maneuvers, making it easier to understand and interpret the results.
+6. Report Generation: The project generates reports in JSX and text formats. This methodology ensures that the results and metrics are presented in a structured and readable manner for stakeholders and further analysis.
+
+These methodologies collectively contribute to the overall process of spacecraft maneuver detection, evaluation, and reporting, providing a comprehensive understanding of the system's performance and effectiveness.
