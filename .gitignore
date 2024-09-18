@@ -1,0 +1,17 @@
+# Backend environment variables
+Backend\(RAG Model\)/.env
+
+# Frontend environment variables
+Frontend\(Interactive QA Bot\)/.env
+
+# Python virtual environments
+.venv/
+Backend\(RAG Model\)/newenv/
+Frontend\(Interactive QA Bot\)/newenv/
+
+# Python bytecode files
+*.pyc
+Backend\(RAG Model\)/__pycache__/
+
+# Ignore long path files
+Backend\(RAG Model\)/newenv/Lib/site-packages/transformers/models/deprecated/trajectory_transformer/
