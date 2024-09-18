@@ -2,7 +2,11 @@ version: '3'
 services:
   backend:
     build:
+<<<<<<< HEAD
       context: "./Backend"
+=======
+      context: "./Backend (RAG Model)"
+>>>>>>> 5fbb05508b34de4b19f44880df54e731c1e8d4a8
       dockerfile: Dockerfile
     container_name: rag-backend
     ports:
@@ -13,7 +17,11 @@ services:
       - .env
   frontend:
     build:
+<<<<<<< HEAD
       context: "./Frontend"
+=======
+      context: "./Frontend (Interactive QA Bot)"
+>>>>>>> 5fbb05508b34de4b19f44880df54e731c1e8d4a8
       dockerfile: Dockerfile
     container_name: rag-frontend
     ports:
