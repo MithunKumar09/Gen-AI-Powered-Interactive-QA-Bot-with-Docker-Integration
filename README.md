@@ -104,21 +104,21 @@
 - │   │   ├── routes.py
 - │   ├── vector_store
 - │   │   ├── pycache
-│   │   └── pinecone_db.py
-│   ├── .env
-│   ├── Dockerfile
-│   ├── manage_index.py
-│   └── requirements.txt
-├── **Frontend (Interactive QA Bot)**
-│   ├── app
-│   │   ├── app.py
-│   ├── static
-│   ├── .env
-│   ├── Dockerfile
-│   └── requirements.txt
-├── .gitignore
-├── .dockerignore
-└── docker-compose.yml
+- │   │   └── pinecone_db.py
+- │   ├── .env
+- │   ├── Dockerfile
+- │   ├── manage_index.py
+- │   └── requirements.txt
+- ├── **Frontend (Interactive QA Bot)**
+- │   ├── app
+- │   │   ├── app.py
+- │   ├── static
+- │   ├── .env
+- │   ├── Dockerfile
+- │   └── requirements.txt
+- ├── .gitignore
+- ├── .dockerignore
+- └── docker-compose.yml
 
 ## Contributing
 **Contributions are welcome! Please follow these steps to contribute:**
