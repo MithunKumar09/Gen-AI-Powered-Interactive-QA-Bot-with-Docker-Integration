@@ -13,7 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application code
 COPY . .
 
-# List files in the directory for debugging
+# List files in the directory for debugging (optional)
 RUN ls -l /app
 
 # Expose the application port
@@ -22,5 +22,5 @@ EXPOSE 5000
 # Set the Flask application environment variable
 ENV FLASK_APP=myapp:create_app
 
-# Run the Flask application
-CMD ["flask", "run", "--host=0.0.0.0", "--port=5000"]
+# Run the Flask application using Gunicorn
+CMD ["gunicorn", "-b", "0.0.0.0:5000", "myapp:create_app"]
