@@ -4,6 +4,7 @@ from myapp.routes import routes
 
 def create_app():
     app = Flask(__name__)
+    app.config['DEBUG'] = True
 
     # Register routes blueprint
     app.register_blueprint(routes)
