@@ -1,4 +1,5 @@
-# backend/myapp/__init__.py
+# Backend/myapp/__init__.py
+import logging
 from flask import Flask
 from myapp.routes import routes
 
@@ -9,8 +10,8 @@ def create_app():
     # Register routes blueprint
     app.register_blueprint(routes)
 
-    return app
+    # Set up logging
+    logging.basicConfig(level=logging.DEBUG)
+    app.logger.debug('App initialized')
 
-if __name__ == "__main__":
-    app = create_app()
-    app.run(host="0.0.0.0", port=5000)
+    return app

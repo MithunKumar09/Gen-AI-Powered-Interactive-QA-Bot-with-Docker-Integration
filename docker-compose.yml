@@ -1,4 +1,4 @@
-version: '3'
+# .docker-compose.yml
 services:
   backend:
     build:
@@ -7,10 +7,10 @@ services:
     container_name: rag-backend
     ports:
       - "5000:5000"
-    environment:
-      - FLASK_APP=myapp:create_app
     env_file:
       - .env
+    environment:
+      FLASK_APP: myapp
 
   frontend:
     build:

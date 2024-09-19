@@ -1,4 +1,4 @@
-#frontend/app/app.py
+#Frontend/app/app.py
 import streamlit as st
 import requests
 from dotenv import load_dotenv
