@@ -1,4 +1,4 @@
-#backend/myapp/routes.py
+#Backend/myapp/routes.py
 from flask import Flask, Blueprint, request, jsonify
 from PyPDF2 import PdfReader
 from models.rag_model import RAGModel
