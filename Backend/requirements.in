@@ -1,0 +1,36 @@
+# Human-maintained dependency inputs. Compile to the pinned requirements.txt:
+#
+#   pip install pip-tools
+#   pip-compile requirements.in -o requirements.txt
+#
+# Only edit this file; requirements.txt is generated and fully pinned.
+
+# --- Web layer ---------------------------------------------------------------
+# Flask >=3.1 pulls Werkzeug >=3.1 transitively, which is what clears the
+# Werkzeug 2.3.7 CVEs (audit finding C3). Do not pin Werkzeug directly.
+Flask>=3.1
+gunicorn>=23
+Flask-Limiter>=3.8
+
+# --- Providers ---------------------------------------------------------------
+# cohere 7.x is the ClientV2 surface. The 5.x line used co.generate() against
+# /v1/generate, deprecated 2025-09-15 (C2).
+cohere>=7,<8
+# The package was renamed from pinecone-client to pinecone; v6+ will not install
+# under the old name and requires Python >=3.10 (C1).
+pinecone>=9,<10
+
+# --- PDF ---------------------------------------------------------------------
+# pypdf supersedes the unmaintained PyPDF2 (C4).
+pypdf>=6
+
+# --- Config ------------------------------------------------------------------
+python-dotenv>=1.0
+
+# Deliberately absent:
+#   numpy    - only used for redundant client-side L2 normalisation. Pinecone's
+#              cosine metric evaluates similarity, so normalising first is
+#              duplicate work (B18).
+#   requests - was listed but never imported by the backend.
+#   blinker, Jinja2, importlib-metadata - transitive deps of Flask; pinning them
+#              directly only creates resolution conflicts.

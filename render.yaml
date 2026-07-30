@@ -1,0 +1,95 @@
+# Render Blueprint: both services from one repository, one git push.
+#
+# Field notes:
+#   * `runtime: docker` -- replaces the older `env: docker`, which Render now
+#     discourages.
+#   * `autoDeployTrigger: off` -- deliberate. `autoDeploy` is deprecated in favour
+#     of this field, and `checksPass` is not used because no CI workflow exists
+#     yet; selecting it would mean waiting on checks that never report. Flip to
+#     `commit` once the deployment has been verified manually.
+#   * `sync: false` -- the value is entered in the Render dashboard and never
+#     stored in this file. Every secret here is `sync: false`.
+#
+# Free-tier behaviour worth knowing before sharing the link: services sleep after
+# ~15 minutes idle and the next request pays a cold start of roughly 50 seconds.
+# The frontend shows a waking-up spinner rather than an error. Upgrading either
+# service to `starter` removes the sleep.
+
+services:
+  # --- API -------------------------------------------------------------------
+  - type: web
+    name: rag-backend
+    runtime: docker
+    dockerfilePath: ./Backend/Dockerfile
+    dockerContext: ./Backend
+    plan: free
+    region: oregon
+    autoDeployTrigger: off
+    # Liveness only, and it makes no provider call, so a Cohere or Pinecone
+    # outage cannot cause Render to cycle an otherwise healthy container.
+    healthCheckPath: /health
+    envVars:
+      - key: COHERE_API_KEY
+        sync: false
+      - key: PINECONE_API_KEY
+        sync: false
+      - key: BACKEND_API_KEY
+        sync: false
+      - key: SESSION_SCOPE_KEY
+        sync: false
+      - key: PINECONE_INDEX
+        value: qa-bot-v1
+      - key: PINECONE_NAMESPACE
+        value: demo-v1
+      - key: PINECONE_CLOUD
+        value: aws
+      # Pinecone Starter permits serverless indexes only in us-east-1.
+      - key: PINECONE_REGION
+        value: us-east-1
+      - key: COHERE_CHAT_MODEL
+        value: command-a-03-2025
+      - key: COHERE_EMBED_MODEL
+        value: embed-v4.0
+      # Must equal the dimension of PINECONE_INDEX. /ready asserts this and
+      # returns 503 naming the mismatch if they diverge.
+      - key: COHERE_EMBED_DIMENSION
+        value: "1024"
+      - key: COHERE_RERANK_MODEL
+        value: rerank-v3.5
+      - key: ENABLE_RERANK
+        value: "true"
+      # Exactly one proxy sits in front of a Render web service, so ProxyFix is
+      # enabled here (and only here) to recover the real client IP for rate
+      # limiting.
+      - key: TRUST_PROXY
+        value: "1"
+      - key: LOG_LEVEL
+        value: INFO
+      - key: LOG_QUESTIONS
+        value: "0"
+
+  # --- UI --------------------------------------------------------------------
+  - type: web
+    name: rag-frontend
+    runtime: docker
+    dockerfilePath: ./Frontend/Dockerfile
+    dockerContext: ./Frontend
+    plan: free
+    region: oregon
+    autoDeployTrigger: off
+    healthCheckPath: /_stcore/health
+    envVars:
+      # Render supplies the backend's hostname; the frontend normalises a bare
+      # host to https:// at startup. On the free tier both services are public,
+      # which is exactly why BACKEND_API_KEY is required on every API call.
+      - key: BACKEND_URL
+        fromService:
+          type: web
+          name: rag-backend
+          property: host
+      # Must match the backend's value.
+      - key: BACKEND_API_KEY
+        sync: false
+      # The visitor-facing passphrase. A spend guard, not authentication.
+      - key: DEMO_PASSWORD
+        sync: false

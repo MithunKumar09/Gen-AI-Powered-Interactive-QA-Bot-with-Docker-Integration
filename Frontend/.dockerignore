@@ -1,0 +1,23 @@
+# The build context for this service is ./Frontend, so the repo-root
+# .dockerignore does not apply. See Backend/.dockerignore for the full
+# rationale (audit finding A3).
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python bytecode and local virtualenvs
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+
+# VCS
+.git
+.gitignore

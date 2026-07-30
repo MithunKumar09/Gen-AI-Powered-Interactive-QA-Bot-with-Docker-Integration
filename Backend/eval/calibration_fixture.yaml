@@ -1,0 +1,94 @@
+# Calibration fixture. TUNE ON THIS ONE.
+#
+# Used to choose chunking parameters, abstention thresholds, embedding dimension,
+# and model identifiers. Iterate against it as much as you like -- that is what
+# it is for.
+#
+# Do NOT tune against holdout_v1.yaml. See eval/README.md for why the separation
+# matters and what to do when a holdout run fails.
+#
+# `documents` are project-owned PDFs. Add your own text-bearing PDFs here; the
+# repository ships only Gen-Ai RAG Report.pdf, which is not enough on its own to
+# keep calibration and holdout disjoint.
+
+version: 1
+documents:
+  - id: report
+    path: ../../Gen-Ai RAG Report.pdf
+    description: The project's own RAG report. Text-bearing, multi-page.
+
+cases:
+  # --- direct lookup: the answer is stated plainly somewhere in the document ---
+  - id: direct-01
+    document: report
+    question: What is Retrieval-Augmented Generation?
+    kind: direct
+    answerable: true
+    expect_keywords: [retrieval, generation]
+
+  - id: direct-02
+    document: report
+    question: Which vector database does this project use?
+    kind: direct
+    answerable: true
+    expect_keywords: [pinecone]
+
+  - id: direct-03
+    document: report
+    question: Which company provides the language model used here?
+    kind: direct
+    answerable: true
+    expect_keywords: [cohere]
+
+  # --- paraphrase: answerable, but the question shares few words with the text -
+  - id: paraphrase-01
+    document: report
+    question: How does the system decide which passages to feed the model?
+    kind: paraphrase
+    answerable: true
+
+  - id: paraphrase-02
+    document: report
+    question: What makes the responses trustworthy rather than invented?
+    kind: paraphrase
+    answerable: true
+
+  # --- unanswerable: the document genuinely does not say. Must abstain. --------
+  - id: unanswerable-01
+    document: report
+    question: What is the capital city of Mongolia?
+    kind: unanswerable
+    answerable: false
+
+  - id: unanswerable-02
+    document: report
+    question: What was Apple's quarterly revenue in 2019?
+    kind: unanswerable
+    answerable: false
+
+  - id: unanswerable-03
+    document: report
+    question: What is my home address?
+    kind: unanswerable
+    answerable: false
+
+  # --- misleading near-match: shares vocabulary with the document but asks
+  #     something the document does not answer. The hardest abstention case,
+  #     because retrieval WILL return confident-looking chunks. ----------------
+  - id: misleading-01
+    document: report
+    question: What is Pinecone's share price today?
+    kind: misleading
+    answerable: false
+
+  - id: misleading-02
+    document: report
+    question: How much does a Cohere enterprise licence cost per seat?
+    kind: misleading
+    answerable: false
+
+  - id: misleading-03
+    document: report
+    question: Which vector database did this project reject and why?
+    kind: misleading
+    answerable: false

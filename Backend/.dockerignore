@@ -1,0 +1,37 @@
+# Docker only reads .dockerignore from the BUILD CONTEXT root. This build's
+# context is ./Backend (see docker-compose.yml), so the repo-root .dockerignore
+# never applies here. Without this file, `COPY . .` bakes Backend/.env --
+# containing live API keys -- into a published image layer. (Audit finding A3.)
+
+# Secrets. This is the line that matters.
+.env
+.env.*
+!.env.example
+
+# Python bytecode and local virtualenvs
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+newenv/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Not needed at runtime. scripts/ is deliberately KEPT so that
+# `docker compose exec backend python scripts/cleanup_orphans.py` works.
+tests/
+eval/
+
+# Generated answer files from the pre-audit implementation
+data/
+
+# VCS
+.git
+.gitignore
