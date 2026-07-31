@@ -16,6 +16,7 @@ clean up.
 from __future__ import annotations
 
 import logging
+import math
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -28,7 +29,9 @@ from rag_core import store as store_mod
 from rag_core.config import Settings
 from rag_core.errors import (
     DocumentNotFoundError,
+    IngestVerificationError,
     ProviderError,
+    ProviderTimeoutError,
     ValidationError,
 )
 from rag_core.generation import Answer, Evidence
@@ -151,8 +154,9 @@ def ingest_pdf(
         for chunk in chunks
     ]
 
-    # 5. Write, then verify. On any failure roll back by exact id -- which is
-    #    possible precisely because the ids are deterministic.
+    # 5. Write, then verify. The phases are deliberately separated so an upsert
+    #    failure keeps its original provider classification, while only an actual
+    #    visibility timeout becomes INGEST_VERIFY_TIMEOUT.
     try:
         store_mod.upsert_chunks(
             settings,
@@ -160,13 +164,17 @@ def ingest_pdf(
             embeddings=vectors,
             metadatas=metadatas,
         )
-        store_mod.await_visible(settings, document_id, expected_ids)
     except Exception as exc:
         _rollback(settings, expected_ids, reason=type(exc).__name__)
-        if isinstance(exc, ProviderError):
-            from rag_core.errors import IngestVerificationError
+        raise
 
-            raise IngestVerificationError(detail=exc.detail) from exc
+    try:
+        store_mod.await_visible(settings, document_id, expected_ids)
+    except ProviderTimeoutError as exc:
+        _rollback(settings, expected_ids, reason=type(exc).__name__)
+        raise IngestVerificationError(detail=exc.detail) from exc
+    except Exception as exc:
+        _rollback(settings, expected_ids, reason=type(exc).__name__)
         raise
 
     log.info(
@@ -269,10 +277,25 @@ def answer_question(
     generated: Answer = gen_mod.generate(
         settings, question=question, evidence=evidence
     )
+    answer_text = (generated.text or "").strip()
+    if not answer_text:
+        return AskResult(
+            answer=ABSTENTION_TEXT,
+            citations=[],
+            abstained=True,
+            metrics={
+                "retrieved_k": len(matches),
+                "reranked_n": len(evidence),
+                "top_score": top_score,
+                "rerank_used": rerank_used,
+                "elapsed_ms": _ms(started),
+            },
+        )
+
     return AskResult(
-        answer=generated.text or ABSTENTION_TEXT,
+        answer=answer_text,
         citations=generated.citations,
-        abstained=not generated.text,
+        abstained=False,
         metrics={
             "retrieved_k": len(matches),
             "reranked_n": len(evidence),
@@ -293,38 +316,187 @@ def _select_evidence(
     not comparable, so they get their own thresholds; the count of surviving
     chunks is the third. Collapsing them into one number is what makes abstention
     behave unpredictably.
+
+    Candidate metadata is validated before reranking so malformed provider data
+    cannot be sent onward to another provider or silently converted into fake
+    evidence.
     """
     if not candidates:
         return [], 0.0, False
 
+    validated = [
+        _to_evidence(candidate, candidate.get("score"))
+        for candidate in candidates
+    ]
+
     if settings.enable_rerank:
-        texts = [str(c["metadata"].get("text", "")) for c in candidates]
-        ranked = rerank_mod.rerank(settings, question, texts)
+        ranked = rerank_mod.rerank(
+            settings,
+            question,
+            [item.text for item in validated],
+        )
+
         evidence: list[Evidence] = []
-        best = 0.0
-        for position, score in ranked:
-            best = max(best, score)
+        seen_positions: set[int] = set()
+        scores: list[float] = []
+
+        for raw_position, raw_score in ranked:
+            position = _required_int(
+                raw_position,
+                field="rerank result index",
+                minimum=0,
+            )
+            if position >= len(validated):
+                raise ProviderError(
+                    detail=(
+                        "Cohere rerank returned an out-of-range candidate index: "
+                        f"{position} for {len(validated)} candidates"
+                    )
+                )
+            if position in seen_positions:
+                raise ProviderError(
+                    detail=(
+                        "Cohere rerank returned a duplicate candidate index: "
+                        f"{position}"
+                    )
+                )
+            seen_positions.add(position)
+
+            score = _finite_float(
+                raw_score,
+                field="rerank relevance_score",
+            )
+            scores.append(score)
+
             if score < settings.rerank_min_score:
                 continue
-            match = candidates[position]
-            evidence.append(_to_evidence(match, score))
-        return evidence, best, True
+
+            item = validated[position]
+            evidence.append(
+                Evidence(
+                    chunk_index=item.chunk_index,
+                    page=item.page,
+                    text=item.text,
+                    score=score,
+                )
+            )
+
+        return evidence, max(scores, default=0.0), True
 
     # Without reranking, the cosine score is the only signal available, so the
     # rerank threshold cannot apply -- using it here would compare unlike scales.
-    top = candidates[: settings.rerank_top_n]
-    best = max((c["score"] for c in candidates), default=0.0)
-    return [_to_evidence(m, m["score"]) for m in top], best, False
+    top = validated[: settings.rerank_top_n]
+    best = max((item.score for item in validated), default=0.0)
+    return top, best, False
 
 
-def _to_evidence(match: dict[str, Any], score: float) -> Evidence:
-    meta = match.get("metadata", {}) or {}
-    return Evidence(
-        chunk_index=int(meta.get("chunk_index", -1) or -1),
-        page=int(meta.get("page", 0) or 0),
-        text=str(meta.get("text", "")),
-        score=float(score),
+def _to_evidence(match: dict[str, Any], score: Any) -> Evidence:
+    """Convert one Pinecone match into validated generation evidence.
+
+    Pinecone numeric metadata may be returned as integers or integral floats.
+    Chunk index zero is valid and must never be collapsed into a missing-value
+    sentinel by truthiness expressions such as ``value or -1``.
+    """
+    metadata = match.get("metadata")
+    if not isinstance(metadata, dict):
+        raise ProviderError(
+            detail="Retrieved Pinecone match is missing metadata"
+        )
+
+    chunk_index = _required_int(
+        metadata.get("chunk_index"),
+        field="chunk_index metadata",
+        minimum=0,
     )
+    page = _required_int(
+        metadata.get("page"),
+        field="page metadata",
+        minimum=1,
+    )
+    text = _required_text(
+        metadata.get("text"),
+        field="text metadata",
+    )
+    relevance = _finite_float(
+        score,
+        field="retrieval score",
+    )
+
+    return Evidence(
+        chunk_index=chunk_index,
+        page=page,
+        text=text,
+        score=relevance,
+    )
+
+
+def _required_int(value: Any, *, field: str, minimum: int) -> int:
+    """Parse a required integer without truncating malformed numeric values."""
+    if value is None or isinstance(value, bool):
+        raise ProviderError(
+            detail=f"Retrieved provider data has invalid {field}: {value!r}"
+        )
+
+    if isinstance(value, float):
+        if not math.isfinite(value) or not value.is_integer():
+            raise ProviderError(
+                detail=f"Retrieved provider data has invalid {field}: {value!r}"
+            )
+
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ProviderError(
+            detail=f"Retrieved provider data has invalid {field}: {value!r}"
+        ) from exc
+
+    # Prevent values such as "1.5" from being accepted through a future custom
+    # numeric type whose int conversion silently truncates.
+    if isinstance(value, str) and value.strip() != str(parsed):
+        raise ProviderError(
+            detail=f"Retrieved provider data has invalid {field}: {value!r}"
+        )
+
+    if parsed < minimum:
+        raise ProviderError(
+            detail=(
+                f"Retrieved provider data has out-of-range {field}: "
+                f"{parsed}; minimum is {minimum}"
+            )
+        )
+
+    return parsed
+
+
+def _required_text(value: Any, *, field: str) -> str:
+    """Return non-empty provider text without altering the stored bytes."""
+    if not isinstance(value, str) or not value.strip():
+        raise ProviderError(
+            detail=f"Retrieved provider data has invalid {field}"
+        )
+    return value
+
+
+def _finite_float(value: Any, *, field: str) -> float:
+    """Parse a finite provider score and reject NaN/Infinity."""
+    if value is None or isinstance(value, bool):
+        raise ProviderError(
+            detail=f"Retrieved provider data has invalid {field}: {value!r}"
+        )
+
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ProviderError(
+            detail=f"Retrieved provider data has invalid {field}: {value!r}"
+        ) from exc
+
+    if not math.isfinite(parsed):
+        raise ProviderError(
+            detail=f"Retrieved provider data has invalid {field}: {value!r}"
+        )
+
+    return parsed
 
 
 # --- Deletion ----------------------------------------------------------------

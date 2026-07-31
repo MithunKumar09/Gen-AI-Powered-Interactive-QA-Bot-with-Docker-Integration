@@ -207,28 +207,89 @@ def delete_older_than(settings: Settings, cutoff_epoch: int) -> None:
 # --- Reads -------------------------------------------------------------------
 
 
-def list_document_ids(settings: Settings, document_id: str) -> set[str]:
-    """Every vector id currently visible for ``document_id``.
+def _extract_listed_ids(page: Any) -> set[str]:
+    """Normalize Pinecone list results into plain vector ID strings.
 
-    ``index.list`` returns an iterator that walks pagination internally. The
-    generator is drained fully here -- a partial read would look like a failed
-    ingest.
+    Supports:
+    - a single string ID
+    - list/tuple/set pages of string IDs
+    - iterable pages of SDK objects exposing ``.id``
+    - response objects exposing ``.vectors`` or legacy ``.ids``
+    - mapping equivalents of those response shapes
+
+    Unknown shapes fail immediately instead of degrading into a verification
+    timeout.
     """
+
+    if isinstance(page, str):
+        return {page}
+
+    if isinstance(page, dict):
+        items = page.get("ids")
+        if items is None:
+            items = page.get("vectors")
+    else:
+        items = getattr(page, "ids", None)
+        if items is None:
+            items = getattr(page, "vectors", None)
+
+    # Implicit Index.list() pagination commonly yields a page directly.
+    if items is None and isinstance(page, (list, tuple, set)):
+        items = page
+
+    if items is None:
+        raise ProviderError(
+            detail=(
+                "Unsupported Pinecone list page shape: "
+                f"{type(page).__module__}.{type(page).__name__}"
+            )
+        )
+
+    found: set[str] = set()
+
+    for item in items:
+        if isinstance(item, str):
+            vector_id = item
+        elif isinstance(item, dict):
+            vector_id = item.get("id")
+        else:
+            vector_id = getattr(item, "id", None)
+
+        if not vector_id:
+            raise ProviderError(
+                detail=(
+                    "Unsupported Pinecone list item shape: "
+                    f"{type(item).__module__}.{type(item).__name__}"
+                )
+            )
+
+        found.add(str(vector_id))
+
+    return found
+
+
+def list_document_ids(settings: Settings, document_id: str) -> set[str]:
+    """Every vector ID currently visible for ``document_id``.
+
+    The Pinecone SDK has exposed multiple response shapes across transports and
+    versions. Every page is normalized into plain ID strings before exact-set
+    verification.
+    """
+
     index = CLIENTS.index(settings)
     found: set[str] = set()
+
     try:
         for page in index.list(
             prefix=document_prefix(document_id),
             namespace=settings.pinecone_namespace,
         ):
-            # Pages come back either as a list of ids or as an object exposing
-            # `.ids`, depending on transport. Handle both rather than betting on
-            # one shape.
-            ids = getattr(page, "ids", page)
-            if ids:
-                found.update(str(i) for i in ids)
+            found.update(_extract_listed_ids(page))
+    except ProviderError:
+        raise
     except Exception as exc:
         raise _translate(exc) from exc
+
     return found
 
 

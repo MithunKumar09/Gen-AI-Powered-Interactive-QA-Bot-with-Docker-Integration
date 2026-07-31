@@ -7,6 +7,8 @@ any failure left the user with nothing.
 
 from __future__ import annotations
 
+from typing import Any
+
 import httpx
 import pytest
 from conftest import make_pdf
@@ -21,8 +23,55 @@ from rag_core.errors import (
     ValidationError,
 )
 
-PAGES = ["Alpha widgets cost ten pounds.", "Beta gears weigh two kilograms.",
-         "The calibration constant is 47 microfarads."]
+PAGES = [
+    "Alpha widgets cost ten pounds.",
+    "Beta gears weigh two kilograms.",
+    "The calibration constant is 47 microfarads.",
+]
+
+
+def _last_chat_documents(providers) -> list[dict[str, Any]]:
+    """Return the document payload sent in the most recent Cohere chat call.
+
+    The helper validates the Cohere Chat V2 contract so test failures clearly
+    identify payload drift instead of failing later with an unrelated KeyError.
+    """
+    calls = providers.cohere.chat_calls
+    assert calls, "expected at least one Cohere chat call"
+
+    documents = calls[-1]["documents"]
+    assert isinstance(documents, list), "chat documents must be a list"
+    assert documents, "expected at least one grounded document"
+
+    for index, document in enumerate(documents):
+        assert isinstance(document, dict), (
+            f"documents[{index}] must be a mapping"
+        )
+
+        document_id = document.get("id")
+        assert isinstance(document_id, str) and document_id.strip(), (
+            f"documents[{index}].id must be a non-empty string"
+        )
+
+        data = document.get("data")
+        assert isinstance(data, dict) and data, (
+            f"documents[{index}].data is required"
+        )
+
+        text = data.get("text")
+        assert isinstance(text, str) and text.strip(), (
+            f"documents[{index}].data.text is required"
+        )
+
+    return documents
+
+
+def _last_chat_context(providers) -> str:
+    """Join text from the most recent Cohere Chat V2 document payload."""
+    return " ".join(
+        document["data"]["text"]
+        for document in _last_chat_documents(providers)
+    )
 
 
 def _ingest(settings, scope, pages=None, filename="doc.pdf"):
@@ -262,9 +311,7 @@ def test_question_answerable_only_from_a_later_page(settings, providers, scope_a
         document_id=result.document_id, scope=scope_a,
     )
     assert answer.abstained is False
-    context = " ".join(
-        d["text"] for d in providers.cohere.chat_calls[-1]["documents"]
-    )
+    context = _last_chat_context(providers)
     assert "8421" in context, "later-page evidence was not retrieved"
 
 
@@ -279,9 +326,7 @@ def test_cross_page_synthesis_retrieves_both_pages(settings, providers, scope_a)
         settings, question="How many watts do the alpha and beta modules consume?",
         document_id=result.document_id, scope=scope_a,
     )
-    context = " ".join(
-        d["text"] for d in providers.cohere.chat_calls[-1]["documents"]
-    )
+    context = _last_chat_context(providers)
     assert "30 watts" in context and "45 watts" in context
 
 

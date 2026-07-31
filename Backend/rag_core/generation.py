@@ -11,12 +11,12 @@ splicing them into the prompt. That is not cosmetic:
 * the model is explicitly told what is evidence and what is instruction, so a
   document containing something that reads like an instruction cannot hijack the
   prompt;
-* the response comes back with **citations** pointing at specific documents, so
+* the response comes back with citations pointing at specific documents, so
   every claim can be traced to a page rather than trusted.
 
 Retry policy here is deliberately narrower than for any other call. The client
-used has SDK retries **disabled**, and a single retry is attempted only when we
-can be confident generation never happened. A read timeout is never retried: the
+used has SDK retries disabled, and a single retry is attempted only when we can
+be confident generation never happened. A read timeout is never retried: the
 request was accepted, only the response was lost, so retrying risks paying and
 generating twice.
 """
@@ -48,31 +48,34 @@ _SYSTEM_PREAMBLE = (
 )
 
 _MAX_ANSWER_TOKENS = 600
-# Low but non-zero: near-deterministic for a factual QA demo, without the
-# degenerate repetition that temperature 0 sometimes produces.
+
+# Low but non-zero: near-deterministic for factual QA, without the degenerate
+# repetition that temperature 0 can sometimes produce.
 _TEMPERATURE = 0.2
 
 
 @dataclass
 class Evidence:
-    """One retrieved chunk offered to the model as a document."""
+    """One retrieved chunk offered to the model as a Cohere document."""
 
     chunk_index: int
     page: int
     text: str
     score: float
 
-    def as_document(self) -> dict[str, str]:
-        """Cohere document payload.
+    def as_document(self) -> dict[str, Any]:
+        """Convert this evidence chunk to a Cohere Chat V2 document.
 
-        ``page`` is included as data so the model can reference it, and the id is
-        the chunk index so returned citations map straight back to our evidence
-        list.
+        Cohere Chat V2 requires all document fields except ``id`` to be nested
+        inside ``data``. The stable outer id maps returned citations back to the
+        corresponding evidence chunk.
         """
         return {
             "id": str(self.chunk_index),
-            "text": self.text,
-            "page": str(self.page),
+            "data": {
+                "text": self.text,
+                "page": str(self.page),
+            },
         }
 
 
@@ -84,33 +87,57 @@ class Answer:
 
 
 def generate(
-    settings: Settings, *, question: str, evidence: list[Evidence]
+    settings: Settings,
+    *,
+    question: str,
+    evidence: list[Evidence],
 ) -> Answer:
-    """Generate a grounded answer with citations."""
+    """Generate a grounded answer using only the supplied evidence."""
+
     documents = [item.as_document() for item in evidence]
+
     messages = [
-        {"role": "system", "content": _SYSTEM_PREAMBLE},
-        {"role": "user", "content": question},
+        {
+            "role": "system",
+            "content": _SYSTEM_PREAMBLE,
+        },
+        {
+            "role": "user",
+            "content": question,
+        },
     ]
 
     response = _chat_with_single_guarded_retry(
-        settings, messages=messages, documents=documents
+        settings,
+        messages=messages,
+        documents=documents,
     )
 
     text = _extract_text(response)
     citations = _extract_citations(response, evidence)
-    return Answer(text=text, citations=citations, abstained=False)
+
+    return Answer(
+        text=text,
+        citations=citations,
+        abstained=not bool(text),
+    )
 
 
 def _chat_with_single_guarded_retry(
-    settings: Settings, *, messages: list[dict[str, str]], documents: list[dict[str, str]]
+    settings: Settings,
+    *,
+    messages: list[dict[str, str]],
+    documents: list[dict[str, Any]],
 ) -> Any:
+    """Call Cohere Chat with at most one safe connection-level retry."""
+
     client = CLIENTS.cohere_no_retry(settings)
     attempts = 0
-    last: Exception | None = None
+    last_error: Exception | None = None
 
     while attempts < 2:
         attempts += 1
+
         try:
             return client.chat(
                 model=settings.chat_model,
@@ -123,87 +150,118 @@ def _chat_with_single_guarded_retry(
                     timeout_in_seconds=int(settings.provider_timeout_s),
                 ),
             )
+
         except Exception as exc:
-            last = exc
+            last_error = exc
+
             if attempts >= 2 or not is_retryable_connection_error(exc):
-                # Either out of attempts, or the failure is ambiguous (e.g. a
-                # read timeout) and a retry could double-bill.
+                # Either the retry allowance is exhausted, or the failure is
+                # ambiguous. Read timeouts must not be retried because Cohere
+                # may already have accepted and billed the request.
                 raise translate_cohere_error(exc) from exc
-            # Short jittered backoff before the single permitted retry.
+
             delay = 0.5 + random.random() * 0.5
+
             log.warning(
                 "chat_retrying",
-                extra={"reason": f"{type(exc).__name__}", "delay_s": round(delay, 2)},
+                extra={
+                    "reason": type(exc).__name__,
+                    "delay_s": round(delay, 2),
+                },
             )
+
             time.sleep(delay)
 
-    raise translate_cohere_error(last or RuntimeError("chat failed"))
+    # Defensive only: the loop either returns or raises.
+    raise translate_cohere_error(
+        last_error or RuntimeError("Cohere chat failed")
+    )
 
 
 def _extract_text(response: Any) -> str:
-    """Pull the assistant text out of a V2ChatResponse.
+    """Extract assistant text from a Cohere V2 chat response.
 
-    The v2 response nests content as a list of typed blocks, so this walks them
-    rather than assuming a single text block exists.
+    Supports both SDK model objects and mapping-shaped test doubles.
     """
-    message = getattr(response, "message", None)
+
+    message = _get(response, "message")
     if message is None:
         return ""
-    blocks = getattr(message, "content", None) or []
+
+    blocks = _get(message, "content", []) or []
     parts: list[str] = []
+
     for block in blocks:
-        text = getattr(block, "text", None)
-        if text:
-            parts.append(text)
+        text = _get(block, "text")
+        if isinstance(text, str) and text.strip():
+            parts.append(text.strip())
+
     return "\n".join(parts).strip()
 
 
-def _extract_citations(response: Any, evidence: list[Evidence]) -> list[dict[str, Any]]:
-    """Map Cohere citations onto our evidence, resolving page numbers.
+def _extract_citations(
+    response: Any,
+    evidence: list[Evidence],
+) -> list[dict[str, Any]]:
+    """Map Cohere citations back to local evidence and page numbers.
 
-    Cohere returns character spans plus the document ids they came from. We
-    surface the page and a short snippet -- enough for a reader to verify the
-    claim, without echoing whole chunks back to the client.
+    Cohere citations can expose their document source as SDK objects or
+    mappings. Only short snippets are returned to the frontend.
     """
-    message = getattr(response, "message", None)
-    raw = getattr(message, "citations", None) or []
-    by_index = {item.chunk_index: item for item in evidence}
-    seen: set[int] = set()
-    out: list[dict[str, Any]] = []
 
-    for citation in raw:
-        for source in getattr(citation, "sources", None) or []:
-            doc_id = getattr(source, "document", None)
-            # Sources expose either a document mapping or a plain id, depending
-            # on the citation kind.
-            if isinstance(doc_id, dict):
-                ident = doc_id.get("id")
-            else:
-                ident = getattr(source, "id", None) or doc_id
+    message = _get(response, "message")
+    raw_citations = _get(message, "citations", []) or []
+
+    by_index = {
+        item.chunk_index: item
+        for item in evidence
+    }
+
+    seen: set[int] = set()
+    output: list[dict[str, Any]] = []
+
+    for citation in raw_citations:
+        sources = _get(citation, "sources", []) or []
+
+        for source in sources:
+            identifier = _extract_source_document_id(source)
+
             try:
-                chunk_index = int(str(ident).split(":")[-1])
+                chunk_index = int(str(identifier).split(":")[-1])
             except (TypeError, ValueError):
                 continue
+
             if chunk_index in seen:
                 continue
+
             item = by_index.get(chunk_index)
             if item is None:
                 continue
+
             seen.add(chunk_index)
-            out.append(
+
+            citation_text = _get(citation, "text", "")
+            snippet_source = (
+                citation_text
+                if isinstance(citation_text, str) and citation_text.strip()
+                else item.text
+            )
+
+            output.append(
                 {
                     "page": item.page,
                     "chunk_index": item.chunk_index,
-                    "snippet": _snippet(getattr(citation, "text", "") or item.text),
+                    "snippet": _snippet(snippet_source),
                 }
             )
 
-    # Fall back to the strongest evidence if the model returned no citations, so
-    # the UI can always show provenance. Marked so it is not mistaken for a
-    # model-asserted citation.
-    if not out and evidence:
-        best = max(evidence, key=lambda e: e.score)
-        out.append(
+    # A model may generate grounded text without returning structured citations.
+    # Preserve provenance by exposing the strongest retrieved evidence, clearly
+    # marked as inferred rather than model-asserted.
+    if not output and evidence:
+        best = max(evidence, key=lambda item: item.score)
+
+        output.append(
             {
                 "page": best.page,
                 "chunk_index": best.chunk_index,
@@ -211,11 +269,45 @@ def _extract_citations(response: Any, evidence: list[Evidence]) -> list[dict[str
                 "inferred": True,
             }
         )
-    return out
+
+    return output
+
+
+def _extract_source_document_id(source: Any) -> Any:
+    """Extract a cited document id from Cohere source response variants."""
+
+    document = _get(source, "document")
+
+    if document is not None:
+        identifier = _get(document, "id")
+        if identifier is not None:
+            return identifier
+
+        # Some SDK/transport variants may expose the document value directly.
+        if isinstance(document, (str, int)):
+            return document
+
+    return _get(source, "id")
+
+
+def _get(value: Any, name: str, default: Any = None) -> Any:
+    """Read a field from either an SDK object or a mapping."""
+
+    if value is None:
+        return default
+
+    if isinstance(value, dict):
+        return value.get(name, default)
+
+    return getattr(value, name, default)
 
 
 def _snippet(text: str, limit: int = 240) -> str:
-    text = " ".join(text.split())
-    if len(text) <= limit:
-        return text
-    return text[: limit - 1].rstrip() + "…"
+    """Collapse whitespace and return a bounded citation snippet."""
+
+    normalized = " ".join((text or "").split())
+
+    if len(normalized) <= limit:
+        return normalized
+
+    return normalized[: limit - 1].rstrip() + "…"

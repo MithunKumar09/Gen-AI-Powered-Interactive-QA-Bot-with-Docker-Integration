@@ -140,6 +140,7 @@ class FakeCohere:
             {
                 "model": model,
                 "input_type": input_type,
+                "texts": list(texts),
                 "count": len(texts),
                 "output_dimension": output_dimension,
                 "truncate": truncate,
@@ -150,18 +151,61 @@ class FakeCohere:
             vectors = vectors[:-1] or []
         return _EmbedResponse(vectors)
 
-    def chat(self, *, model, messages, documents, max_tokens=None,
-             temperature=None, request_options=None, **_):
+    def chat(
+        self,
+        *,
+        model,
+        messages,
+        documents,
+        max_tokens=None,
+        temperature=None,
+        request_options=None,
+        **_,
+    ):
         if self.chat_errors:
             raise self.chat_errors.pop(0)
+
+        # Mirror Cohere Chat V2's required document structure. This ensures
+        # tests reject payloads that the real Cohere API would reject.
+        for index, document in enumerate(documents):
+            assert isinstance(document, dict), (
+                f"documents[{index}] must be a mapping"
+            )
+
+            document_id = document.get("id")
+            assert isinstance(document_id, str) and document_id.strip(), (
+                f"documents[{index}].id must be a non-empty string"
+            )
+
+            data = document.get("data")
+            assert isinstance(data, dict) and data, (
+                f"documents[{index}].data is required"
+            )
+
+            text = data.get("text")
+            assert isinstance(text, str) and text.strip(), (
+                f"documents[{index}].data.text is required"
+            )
+
+            page = data.get("page")
+            assert isinstance(page, str) and page.strip(), (
+                f"documents[{index}].data.page is required"
+            )
+
         self.chat_calls.append(
-            {"model": model, "messages": messages, "documents": documents}
+            {
+                "model": model,
+                "messages": messages,
+                "documents": documents,
+            }
         )
+
         ids = (
             [str(i) for i in self.cite_indices]
             if self.cite_indices is not None
-            else [d["id"] for d in documents[:1]]
+            else [str(document["id"]) for document in documents[:1]]
         )
+
         citations = [_Citation("cited span", ids)] if ids else []
         return _ChatResponse(self.answer, citations)
 
@@ -208,9 +252,18 @@ def _matches_filter(metadata: dict[str, Any], flt: dict[str, Any] | None) -> boo
     return True
 
 
+class _VectorId:
+    """Minimal stand-in for a Pinecone listed-vector identifier."""
+
+    def __init__(self, vector_id: str):
+        self.id = vector_id
+
+
 class _ListPage:
+    """Minimal stand-in for a current Pinecone list response page."""
+
     def __init__(self, ids: list[str]):
-        self.ids = ids
+        self.vectors = [_VectorId(vector_id) for vector_id in ids]
 
 
 class FakeIndex:
