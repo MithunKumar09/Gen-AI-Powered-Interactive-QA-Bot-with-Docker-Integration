@@ -195,7 +195,7 @@ is hygiene, not a quota requirement — Starter allows 5 indexes. Leaving a stal
 ## Step 2: Verify locally
 
 ```bash
-cd Backend && pytest -q          # 213 tests, no network
+cd Backend && pytest -q          # all tests must pass, no network
 cd .. && docker compose up --build
 ```
 
@@ -360,12 +360,20 @@ returns 404, and the UI clears its state and asks for a re-upload.
 Worth being explicit, since a demo that looks production-shaped can imply more
 than it provides:
 
-- **The passphrase is a spend guard, not authentication.** It stops a stranger
-  from burning your Cohere credits. It is shared, not per-user, and protects
-  nothing else.
-- **Rate limits are per worker and reset on redeploy.** They bound runaway demo
-  spend. They are not an enforceable account-wide budget — set spend limits in the
-  Cohere dashboard if you need a real ceiling.
+- **The passphrase is not authentication in either mode.** It is shared, not
+  per-user, and protects nothing else. With `PUBLIC_DEMO_MODE` off it is a basic
+  spend guard against a stranger burning your Cohere credits. With it on, the
+  code is intentionally displayed on the login page for portfolio visitors, so it
+  no longer provides meaningful spend protection — it is only an explicit entry
+  step.
+- **Rate limits reduce abuse; they do not cap spend.** Per-IP and per-scope
+  limits bound any single caller in both modes. The `*_APP_PROCESS` limits are
+  **per Gunicorn worker, not application-wide totals** — the backend runs
+  `--workers 2`, so aggregate process capacity is up to roughly 2× the configured
+  value, and every counter resets on restart or redeploy.
+- **Provider-side usage and spending controls are the authoritative financial
+  backstop.** Set them in the Cohere dashboard; nothing in this repository is a
+  real ceiling. This matters most when `PUBLIC_DEMO_MODE` is on.
 - **Uploaded documents are not private in any strong sense.** They are isolated
   per browser session and deleted on the retention cutoff, but they do sit in your
   Pinecone index in the meantime. Do not upload anything genuinely sensitive.

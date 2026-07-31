@@ -90,6 +90,11 @@ services:
       # Must match the backend's value.
       - key: BACKEND_API_KEY
         sync: false
-      # The visitor-facing passphrase. A spend guard, not authentication.
+      # Shared demo passphrase. Private spend guard when public mode is disabled;
+      # intentionally displayed when public mode is enabled. Not authentication.
       - key: DEMO_PASSWORD
         sync: false
+      # Non-secret. Publishes DEMO_PASSWORD on the login page so portfolio
+      # visitors can sign in. Set to "false" to restore the private gate.
+      - key: PUBLIC_DEMO_MODE
+        value: "true"
