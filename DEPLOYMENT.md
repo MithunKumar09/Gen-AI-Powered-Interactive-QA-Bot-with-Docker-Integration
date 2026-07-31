@@ -98,7 +98,7 @@ scope, just unreachable. Retention cleanup removes them on the normal cutoff.
 
 ```bash
 cp .env.example .env
-# then fill in the four secrets you just obtained
+# then fill in the five required secret values you just obtained
 ```
 
 `.env` is gitignored (`.env` with no slash matches at any depth, so
@@ -137,7 +137,7 @@ git log --all -S 'OLD_PINECONE_KEY' --oneline   # expect no output
 gitleaks detect --no-banner                      # if installed
 
 # 6. Re-add the remote (filter-repo removes it) and push.
-git remote add origin https://github.com/MithunKumar09/Gen-Ai-RAG-Enhanced-Interactive-QA-Bot.git
+git remote add origin https://github.com/MithunKumar09/Gen-AI-Powered-Interactive-QA-Bot-with-Docker-Integration.git
 git fetch origin
 git push --force-with-lease=main:5a32138 origin main
 ```
@@ -195,7 +195,7 @@ is hygiene, not a quota requirement — Starter allows 5 indexes. Leaving a stal
 ## Step 2: Verify locally
 
 ```bash
-cd Backend && pytest -q          # 210 tests, no network
+cd Backend && pytest -q          # 213 tests, no network
 cd .. && docker compose up --build
 ```
 
