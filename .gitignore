@@ -1,15 +1,38 @@
-# Backend environment variables
-Backend (RAG Model)/.env
-
-# Frontend environment variables
-Frontend (Interactive QA Bot)/.env
-
-# Root environment variables
+# --- Secrets -----------------------------------------------------------------
+# A pattern without a slash matches at any depth, so this covers .env,
+# Backend/.env and Frontend/.env in one line.
 .env
+.env.*
+!.env.example
 
-# Python bytecode files
-*.pyc
-Backend(RAG Model)/__pycache__/
+# --- Python ------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+newenv/
 
-# Ignore long path files
-Backend (RAG Model)/newenv/Lib/site-packages/
+# --- Tooling caches ----------------------------------------------------------
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# --- Generated runtime output ------------------------------------------------
+# The pre-audit implementation wrote every answer to Backend/data/ and two of
+# those files were committed. Nothing here belongs in version control.
+Backend/data/
+
+# --- Evaluation --------------------------------------------------------------
+# Fixtures ARE tracked (they define the quality gate). Reports are not: they
+# embed question text and are regenerated on every run.
+Backend/eval/reports/
+
+# --- Editor / OS -------------------------------------------------------------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

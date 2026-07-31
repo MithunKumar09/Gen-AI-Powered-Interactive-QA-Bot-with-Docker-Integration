@@ -1,25 +1,67 @@
-# .docker-compose.yml
+# Local development. Mirrors the Render topology: two services, the frontend
+# talking to the backend over HTTP with a shared API key.
+#
+# Note each service gets its own env_file. The previous compose file pointed both
+# at the root .env, which handed the frontend the Cohere and Pinecone keys it has
+# no use for -- needless exposure in a container that renders user-facing HTML.
+
 services:
   backend:
     build:
-      context: "./Backend"
+      context: ./Backend
       dockerfile: Dockerfile
     container_name: rag-backend
+    restart: unless-stopped
     ports:
+      # Published locally so the API can be exercised with curl. On Render this
+      # is handled by the platform.
       - "5000:5000"
-    env_file:
-      - .env
     environment:
-      FLASK_APP: myapp
+      PORT: 5000
+      # No proxy in front of the container locally, so forwarded headers must not
+      # be trusted -- otherwise any caller could spoof their IP and defeat the
+      # per-IP rate limit. On Render this is set to 1.
+      TRUST_PROXY: 0
+    env_file:
+      # Overridable so you can keep separate local/staging env files without
+      # editing this file:  docker compose --env-file .env.staging up
+      - ${BACKEND_ENV_FILE:-.env}
+    healthcheck:
+      # Uses the image's stdlib probe rather than curl, which slim does not have.
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=4).status==200 else sys.exit(1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   frontend:
     build:
-      context: "./Frontend"
+      context: ./Frontend
       dockerfile: Dockerfile
     container_name: rag-frontend
+    restart: unless-stopped
     ports:
       - "8501:8501"
+    # No env_file here on purpose. env_file loads the WHOLE file, which would
+    # hand this container COHERE_API_KEY and PINECONE_API_KEY -- secrets it never
+    # uses. Listing variables explicitly means Compose substitutes just these
+    # three from the root .env and nothing else crosses the boundary.
+    environment:
+      PORT: 8501
+      # Docker's internal DNS resolves the service name. Single source of truth
+      # for the backend address; the previous setup had one value in the root
+      # .env and a conflicting one in Frontend/.env.
+      BACKEND_URL: http://backend:5000
+      BACKEND_API_KEY: ${BACKEND_API_KEY:?BACKEND_API_KEY must be set in .env}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-}
     depends_on:
-      - backend
-    env_file:
-      - .env
+      backend:
+        # Wait for healthy, not merely started, so the first upload does not race
+        # a backend that is still importing its dependencies.
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=4).status==200 else sys.exit(1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 25s

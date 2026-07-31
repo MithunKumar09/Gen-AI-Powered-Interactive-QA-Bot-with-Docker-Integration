@@ -1,0 +1,120 @@
+# HOLDOUT FIXTURE v1 -- SINGLE USE. DO NOT TUNE AGAINST THIS FILE.
+#
+# Run this exactly once, against a frozen configuration, to decide pass/fail.
+#
+# If it FAILS, this fixture is retired: its cases may be folded into
+# calibration_fixture.yaml, and the next final evaluation requires a newly
+# written holdout_v2.yaml. Relaxing a threshold and re-running this same file
+# turns an honest measurement into a tuned one, which is the whole thing the
+# split exists to prevent.
+#
+# Cases here are deliberately harder than calibration, and weighted towards the
+# two failure modes that matter most for a public demo:
+#   * later-page / cross-page evidence -- the pre-audit implementation embedded
+#     the whole PDF as one vector, so anything past the truncation point was
+#     unreachable. These cases fail outright on that design.
+#   * misleading near-matches -- retrieval returns confident-looking chunks, so
+#     this is where a system fabricates instead of abstaining.
+
+version: 1
+holdout_id: holdout_v1
+documents:
+  - id: report
+    path: ../../Gen-Ai RAG Report.pdf
+    description: The project's own RAG report.
+
+cases:
+  # --- later-page evidence: the decisive regression cases ---------------------
+  - id: later-page-01
+    document: report
+    question: What does the report say about the Docker setup?
+    kind: later-page
+    answerable: true
+    min_page: 2
+
+  - id: later-page-02
+    document: report
+    question: How is the project's directory structure organised?
+    kind: later-page
+    answerable: true
+    min_page: 2
+
+  # --- cross-page synthesis --------------------------------------------------
+  - id: cross-page-01
+    document: report
+    question: How do the frontend and backend communicate with each other?
+    kind: cross-page
+    answerable: true
+
+  - id: cross-page-02
+    document: report
+    question: Which external services does the system depend on, and what does
+      each one do?
+    kind: cross-page
+    answerable: true
+
+  # --- paraphrase -----------------------------------------------------------
+  - id: paraphrase-01
+    document: report
+    question: What stops the model from making things up?
+    kind: paraphrase
+    answerable: true
+
+  - id: paraphrase-02
+    document: report
+    question: Where do the numerical representations of the text get kept?
+    kind: paraphrase
+    answerable: true
+
+  # --- direct ---------------------------------------------------------------
+  - id: direct-01
+    document: report
+    question: What are the main features of this system?
+    kind: direct
+    answerable: true
+
+  - id: direct-02
+    document: report
+    question: What is needed to run this project?
+    kind: direct
+    answerable: true
+
+  # --- misleading near-match: must abstain despite lexical overlap -----------
+  - id: misleading-01
+    document: report
+    question: What is the maximum number of concurrent users this system was
+      load tested with?
+    kind: misleading
+    answerable: false
+
+  - id: misleading-02
+    document: report
+    question: Which Kubernetes version does the deployment target?
+    kind: misleading
+    answerable: false
+
+  - id: misleading-03
+    document: report
+    question: What is the monthly Pinecone bill for this project?
+    kind: misleading
+    answerable: false
+
+  - id: misleading-04
+    document: report
+    question: How many documents were in the training set for the embedding
+      model?
+    kind: misleading
+    answerable: false
+
+  # --- plainly unanswerable -------------------------------------------------
+  - id: unanswerable-01
+    document: report
+    question: Who won the 2024 Formula One world championship?
+    kind: unanswerable
+    answerable: false
+
+  - id: unanswerable-02
+    document: report
+    question: What is the chemical formula for caffeine?
+    kind: unanswerable
+    answerable: false

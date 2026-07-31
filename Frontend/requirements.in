@@ -1,0 +1,11 @@
+# Human-maintained dependency inputs. Compile to the pinned requirements.txt:
+#
+#   pip install pip-tools
+#   pip-compile requirements.in -o requirements.txt
+#
+# The previous requirements.txt was entirely unpinned (streamlit / requests /
+# python-dotenv with no versions), so builds were not reproducible (C13).
+
+streamlit>=1.40
+requests>=2.32
+python-dotenv>=1.0
