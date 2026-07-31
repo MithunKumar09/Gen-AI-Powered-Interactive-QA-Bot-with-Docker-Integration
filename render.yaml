@@ -23,7 +23,7 @@ services:
     dockerfilePath: ./Backend/Dockerfile
     dockerContext: ./Backend
     plan: free
-    region: oregon
+    region: virginia
     autoDeployTrigger: off
     # Liveness only, and it makes no provider call, so a Cohere or Pinecone
     # outage cannot cause Render to cycle an otherwise healthy container.
@@ -75,7 +75,7 @@ services:
     dockerfilePath: ./Frontend/Dockerfile
     dockerContext: ./Frontend
     plan: free
-    region: oregon
+    region: virginia
     autoDeployTrigger: off
     healthCheckPath: /_stcore/health
     envVars:
@@ -86,7 +86,7 @@ services:
         fromService:
           type: web
           name: rag-backend
-          property: host
+          envVarKey: RENDER_EXTERNAL_HOSTNAME
       # Must match the backend's value.
       - key: BACKEND_API_KEY
         sync: false
