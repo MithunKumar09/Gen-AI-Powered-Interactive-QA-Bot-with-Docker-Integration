@@ -60,6 +60,16 @@ def _backend_url() -> str:
 BACKEND_URL = _backend_url()
 API_KEY = os.getenv("BACKEND_API_KEY", "")
 DEMO_PASSWORD = os.getenv("DEMO_PASSWORD", "")
+# Non-secret opt-in for the public portfolio demo: publishes DEMO_PASSWORD on the
+# login page so a visitor can get in without being sent it out of band. Parsed the
+# same way as the backend's booleans (rag_core/config.py), which cannot be imported
+# here -- the frontend image is built from the Frontend/ context alone.
+PUBLIC_DEMO_MODE = os.getenv(
+    "PUBLIC_DEMO_MODE", ""
+).strip().lower() in {"1", "true", "yes", "on"}
+# Never render an empty code block: with no passphrase configured the gate is
+# skipped entirely (see `authed` below), so this is a second, independent guard.
+SHOW_DEMO_CODE = PUBLIC_DEMO_MODE and bool(DEMO_PASSWORD)
 
 st.set_page_config(
     page_title="Interactive QA Bot with RAG",
@@ -120,16 +130,27 @@ def _friendly_error(response: requests.Response) -> str:
 
 
 def _gate() -> None:
-    """Shared-passphrase gate.
+    """Shared passphrase gate.
 
-    This is a spend guard, not authentication: it exists so a public demo link
-    cannot be used by strangers to run up Cohere costs. It does not protect
-    anything else, and it is not per-user.
+    When PUBLIC_DEMO_MODE is disabled, the passphrase provides a basic spend
+    guard. When public demo mode is enabled, the code is intentionally displayed
+    and the gate serves only as an explicit portfolio-demo entry step. It is not
+    user authentication in either mode.
     """
     st.title("📄 Interactive QA Bot with RAG")
     st.caption("Ask questions about your own PDF, answered only from its contents.")
     with st.form("gate"):
         entered = st.text_input("Demo passphrase", type="password")
+        if SHOW_DEMO_CODE:
+            # Deliberately public: this code is displayed, so it is an entry step
+            # rather than access control. Rendered only -- never auto-filled or
+            # auto-submitted; the visitor still submits the form below.
+            st.caption("Portfolio demo access code")
+            st.code(DEMO_PASSWORD, language=None)
+            st.caption(
+                "This public code is provided so recruiters and hiring managers "
+                "can test the demo."
+            )
         if st.form_submit_button("Enter", use_container_width=True):
             if hmac.compare_digest(entered or "", DEMO_PASSWORD):
                 st.session_state.authed = True

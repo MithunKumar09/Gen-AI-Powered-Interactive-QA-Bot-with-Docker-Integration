@@ -44,8 +44,9 @@ services:
       - "8501:8501"
     # No env_file here on purpose. env_file loads the WHOLE file, which would
     # hand this container COHERE_API_KEY and PINECONE_API_KEY -- secrets it never
-    # uses. Listing variables explicitly means Compose substitutes just these
-    # three from the root .env and nothing else crosses the boundary.
+    # uses. Listing variables explicitly means Compose substitutes only the
+    # frontend variables declared below; backend provider secrets never cross
+    # this boundary.
     environment:
       PORT: 8501
       # Docker's internal DNS resolves the service name. Single source of truth
@@ -54,6 +55,8 @@ services:
       BACKEND_URL: http://backend:5000
       BACKEND_API_KEY: ${BACKEND_API_KEY:?BACKEND_API_KEY must be set in .env}
       DEMO_PASSWORD: ${DEMO_PASSWORD:-}
+      # Non-secret. Publishes DEMO_PASSWORD on the login page. Unset => false.
+      PUBLIC_DEMO_MODE: ${PUBLIC_DEMO_MODE:-}
     depends_on:
       backend:
         # Wait for healthy, not merely started, so the first upload does not race
